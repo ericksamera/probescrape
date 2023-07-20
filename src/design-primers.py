@@ -26,10 +26,9 @@ def _run_primersearch(_probe_root: int, _probe_len: int) -> None:
     ])
     return None
 
-
-region: str ='CP058473.2:39,039-39,451'
-probe_start: int = 102
-probe_len: int = 22
+region: str ='CP058473.2:1069850-1070050'
+probe_start: int = 78
+probe_len: int = 18
 
 _output_region_fasta(region)
 _run_primersearch(probe_start, probe_len)

@@ -180,15 +180,15 @@ def main():
         level=logging.INFO,
         handlers=[
             logging.FileHandler(args.output_path.joinpath('primersearch.log')),
-            logging.StreamHandler()
+            #logging.StreamHandler()
         ],
         format='%(asctime)s:%(levelname)s: %(message)s',
         datefmt='%m/%d/%Y %H:%M:%S',
     )
 
     #Process the alignment
-    logging.info(f'Primersearch.py - designing primer pairs for probe {args.pb_start}-{args.pb_len}')
-    logging.info(f"{get_param_string(args)}")
+    #logging.info(f'Primersearch.py - designing primer pairs for probe {args.pb_start}-{args.pb_len}')
+    #logging.info(f"{get_param_string(args)}")
 
     target_alignment = Alignment(args.target_alignment_path)
     target_alignment.get_consensus()
@@ -222,7 +222,7 @@ def main():
         rev_blast_results = primer_blast.multi_blast(primer_gen.rev_primers, args.num_jobs)
         logging.info(f"Done!")
 
-        logging.info(f"Calculating sensitivity and specificity scores...")
+        #logging.info(f"Calculating sensitivity and specificity scores...")
         for fw_primer in primer_gen.fw_primers: 
             fw_primer.calculate_sensitivity(target_alignment)
             fw_primer.calculate_specificity(
@@ -240,12 +240,12 @@ def main():
                 primer_blast.blastdb_len
                 )
             rev_primer.calculate_score()
-        logging.info(f"Done!")
+        #logging.info(f"Done!")
 
-        logging.info(f"Outputting BLAST results...")
+        #logging.info(f"Outputting BLAST results...")
         primer_blast.output(fw_blast_results, args.output_path, 'fw')
         primer_blast.output(rev_blast_results, args.output_path, 'rev')
-        logging.info(f"Done!")
+        #logging.info(f"Done!")
 
     #Generate primer pairs
     logging.info(f"Finding primer pairs...")

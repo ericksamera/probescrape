@@ -175,22 +175,23 @@ def main():
         level=logging.INFO,
         handlers=[
             logging.FileHandler(args.output_path.joinpath('probesearch.log')),
-            logging.StreamHandler()
+
         ],
         format='%(asctime)s:%(levelname)s: %(message)s',
         datefmt='%m/%d/%Y %H:%M:%S',
     )
 
     #Process the alignment
-    logging.info(f'Probesearch - Designing probes for {args.target_alignment_path.stem}.')
-    logging.info(f"{get_param_string(args)}")
+    #logging.info(f'Probesearch - Designing probes for {args.target_alignment_path.stem}.')
+    #logging.info(f"{get_param_string(args)}")
+    logging.info(f'Probesearch - Designing probes for ')
 
     target_alignment = Alignment(args.target_alignment_path)
     target_alignment.get_consensus()
     num_seq = len(target_alignment.alignment)
 
     #Generate Probes
-    logging.info(f'Generating probes...')
+    #logging.info(f'Generating probes...')
 
     pb_gen = ProbeGenerator(
         target_alignment.consensus, 
@@ -205,21 +206,21 @@ def main():
     #Do the specificity check
     if args.sens_spec_flag is False:     
         #Generate BLAST results
-        logging.info(f'BLASTing probes...')
+        #logging.info(f'BLASTing probes...')
 
         pb_blast = Blast(args.blastdb)
         blast_results = pb_blast.multi_blast(pb_gen.probes, args.num_jobs)
 
-        logging.info(f'BLAST jobs complete!')
+        #logging.info(f'BLAST jobs complete!')
         #Output BLAST results
-        logging.info(f'Outputting BLAST result .csv to {str(args.output_path)}')
+        #logging.info(f'Outputting BLAST result .csv to {str(args.output_path)}')
 
         pb_blast.output(blast_results, args.output_path, 'probe')
 
-        logging.info(f'Output complete.')
+        #logging.info(f'Output complete.')
 
         #Calculate sensitivity and specificity
-        logging.info(f'Calculating sensitivity and specificity...')
+        #logging.info(f'Calculating sensitivity and specificity...')
 
         for probe in pb_gen.probes: 
             probe.calculate_sensitivity(target_alignment)

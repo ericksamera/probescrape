@@ -121,7 +121,7 @@ class Alignment:
         """Get ungapped sequences, put into a nice dictionary keyed by accession"""
         sequence_dict = {}
         for sequence in self.alignment: 
-            sequence_dict[sequence.id] = str(sequence.seq.ungap())
+            sequence_dict[sequence.id] = str(sequence.seq.replace("-", ""))
         return sequence_dict
 
     def get_consensus(self, min_con: float = 0.9, min_rep: float = 0.5) -> str:
@@ -134,8 +134,8 @@ class Alignment:
         #Determine sequence representation
         sequence_regions = []
         for sequence in self.alignment: 
-            start_base = sequence.seq.ungap()[0]
-            end_base = sequence.seq.ungap()[-1]
+            start_base = sequence.seq.replace("-", "")[0]
+            end_base = sequence.seq.replace("-", "")[-1]
             start_index = sequence.seq.find(start_base) #inclusive
             end_index = sequence.seq.rfind(end_base)+1 #exclusive
             sequence_regions.append((start_index, end_index))
@@ -207,7 +207,7 @@ class Alignment:
         sequence_regions = dict()
 
         for sequence in self.alignment: 
-            ungap_sequence = sequence.seq.ungap()
+            ungap_sequence = sequence.seq.replace("-", "")
             start_base = ungap_sequence[0]
             end_base = ungap_sequence[-1]
             start_index = sequence.seq.find(start_base)

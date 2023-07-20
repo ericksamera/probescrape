@@ -12,7 +12,7 @@ from math import floor
 #Third-party libraries
 from Bio import SeqIO, Seq
 import pandas as pd
-from primer3 import calcTm
+from primer3 import calc_tm
 #Local modules
 from consensus import Alignment   
 from tmcalc import CalcProbeTm
@@ -537,7 +537,7 @@ class ProbeGenerator:
             if probe.target_accessions: 
                 accessions_covered = probe.target_accessions
             else:
-                accessions_covered = None
+                accessions_covered = []
             
             #seq rep filter
             if f_seq_rep and ((len(accessions_covered)/num_seq) < min_seq_rep):
@@ -773,7 +773,7 @@ class PrimerGenerator:
         #Otherwise, use a truncated range to search for forward primers
         if self.pb_start - self.max_length - 50 < 0: 
             range_len = self.pb_start - self.max_length + 1
-            print("Start too close to beginning of seq. Truncated cases")
+            #print("Start too close to beginning of seq. Truncated cases")
 
             #This range length only applies longest case; there's another few cases before it
             #Calculate edge cases
@@ -801,7 +801,7 @@ class PrimerGenerator:
                     Oligo(
                         index[0] + 1,
                         sequence,
-                        float(calcTm(sequence, dv_conc=1.5)),
+                        float(calc_tm(sequence, dv_conc=1.5)),
                     )
                 )
 
@@ -937,7 +937,7 @@ class PrimerGenerator:
                     Oligo(
                         index[0], 
                         rev_primer_seq, 
-                        float(calcTm(rev_primer_seq, dv_conc=1.5))
+                        float(calc_tm(rev_primer_seq, dv_conc=1.5))
                     )
                 )
         

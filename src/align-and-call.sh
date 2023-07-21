@@ -1,5 +1,6 @@
 #!/bin/bash
-sudo ulimit -Sn 4096
+
+ulimit -Sn 4096
 for run_type in "targets" "non-targets"; do
         threads=12
         genomic_reference="reference/GCA_016453205.2_ASM1645320v2_genomic.fna"

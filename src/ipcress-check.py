@@ -2,9 +2,9 @@ from pathlib import Path
 import subprocess
 from collections import Counter
 
-forward_primer: str = 'AATCCAGCCTCCGCCACCAAT'
-reverse_primer: str = 'TATGGCGGTCCAGACGGGAATT'
-mismatches: int = 3
+forward_primer: str = 'CCAGCCTCCGCCACCAATTT'
+reverse_primer: str = 'ATGGCGGTCCAGACGGGAAT'
+mismatches: int = 1
 
 def _get_products() -> None:
     """
@@ -23,7 +23,7 @@ def _get_products() -> None:
             if 'ipcress' in line: continue
             if line.startswith('>'): line = f">{line.strip().split('seq ')[1]}"
             products_file.write(line.strip()+'\n')
-    
+
     print('Wrote products')
 
 def run_ipcr() -> None:

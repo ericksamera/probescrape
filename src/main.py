@@ -4,6 +4,7 @@ import csv
 import random
 import pandas as pd
 import logging
+from Bio import SeqIO
 
 def _output_region_fasta(_region_str: str) -> None:
     """
@@ -106,11 +107,11 @@ def _find_nearby_annotations(_target_region_str: str):
 
     return ';'.join(sorted(set(genes))), ';'.join(sorted(set(gene_products)))
 def _output_results(_results: list, _name_str: str) -> None: pd.DataFrame(_results).to_csv(f'{_name_str}', index=False); return None
-def _generate_probes_short_list(_nt_flank: int=75, _batch_k: int=3) -> None:
+def _generate_probes_short_list(_targets_file: str, _nt_flank: int=75, _batch_k: int=3) -> list:
     """
     """
-    with open('super-short-targets.csv') as input_csv:
-        probe_results = []
+    probe_results = []
+    with open(_targets_file) as input_csv:
         for line_dict in csv.DictReader(input_csv): 
             chromosome_str, start_pos, end_pos = _parse_coords(line_dict['COORDS'])
 
@@ -118,71 +119,70 @@ def _generate_probes_short_list(_nt_flank: int=75, _batch_k: int=3) -> None:
             _output_region_fasta(target_region_str)
             _run_probesearch(target_region_str)
             probe_results += _parse_probesearch_results(target_region_str, (end_pos+_nt_flank)-(start_pos-_nt_flank), _batch_k=_batch_k)
-            #except: _output_results(probe_results); continue
         
     _output_results(probe_results, 'probescrape-results.csv')
-    return None
-def _parse_probescrape_results(_batch_k: int=2, _primer_batch_mround: int=5) -> None:
+    return probe_results
+def _parse_probescrape_results(_probescrape_results: list, _batch_k: int=2, _primer_batch_mround: int=5) -> list:
     """
     """
 
     targets_list: list = [file.stem.replace('.fna', '') for file in Path('targets').glob('*.fna.gz')]
     non_targets_list: list = [file.stem.replace('.fna', '') for file in Path('non-targets').glob('*.fna.gz')]
 
-    with open('probescrape-results.csv') as probescrape_results_csv: num_probes = len(probescrape_results_csv.read().split('\n')) - 1
+    num_probes: int = len(_probescrape_results)
     logging.info(f'Found {num_probes} potential probes.')
 
-    potential_primer_results = []
-    with open('probescrape-results.csv') as probescrape_results_csv:
-        for probescrape_line_dict in csv.DictReader(probescrape_results_csv):
-            _output_region_fasta(probescrape_line_dict['target'])
-            _run_primersearch(probescrape_line_dict['probe_root'], probescrape_line_dict['probe_len'])
+    potential_primer_results: list = []
+    for probescrape_line_dict in _probescrape_results:
+        _output_region_fasta(probescrape_line_dict['target'])
+        _run_primersearch(probescrape_line_dict['probe_root'], probescrape_line_dict['probe_len'])
 
-            batches_dict: dict = {}
-            with open('primer_pairs.csv') as probe_csv:
-                for primer_line_dict in csv.DictReader(probe_csv):
-                    f_primer_batch = _mround(int(primer_line_dict['fw_root']), _primer_batch_mround)
-                    r_primer_batch = _mround(int(primer_line_dict['rev_root']), _primer_batch_mround)
-                    f_r_primer_batch = f"{f_primer_batch}-{r_primer_batch}"
-                    if f_r_primer_batch not in batches_dict: batches_dict[f_r_primer_batch] = []
-                    batches_dict[f_r_primer_batch].append(primer_line_dict)
+        batches_dict: dict = {}
+        with open('primer_pairs.csv') as probe_csv:
+            for primer_line_dict in csv.DictReader(probe_csv):
+                f_primer_batch = _mround(int(primer_line_dict['fw_root']), _primer_batch_mround)
+                r_primer_batch = _mround(int(primer_line_dict['rev_root']), _primer_batch_mround)
+                f_r_primer_batch = f"{f_primer_batch}-{r_primer_batch}"
+                if f_r_primer_batch not in batches_dict: batches_dict[f_r_primer_batch] = []
+                batches_dict[f_r_primer_batch].append(primer_line_dict)
 
-            logging.info(f'Generated {len(batches_dict)} batches of primer pairs.')
-            random_batch_choices = []
-            logging.info(f'Picking {_batch_k} primer pairs from each batch for a total of {len(batches_dict)*_batch_k} primer pairs.')
-            for batch_num, batch in batches_dict.items():
-                random_batch_choices.append(random.choices(batch, k=_batch_k))
+        logging.info(f'Generated {len(batches_dict)} batches of primer pairs.')
+        random_batch_choices = []
+        logging.info(f'Picking {_batch_k} primer pairs from each batch for a total of {len(batches_dict)*_batch_k} primer pairs.')
+        for batch_num, batch in batches_dict.items():
+            random_batch_choices.append(random.choices(batch, k=_batch_k))
+        
+        for key in ('probe_root', 'probe_len', 'seq_rep', 'sens', 'spec', 'score', 'filesize'): probescrape_line_dict.pop(key)
+        for primer_pair in _flatten_list(random_batch_choices):
+            probescrape_line_dict['fw_seq'] = primer_pair['fw_seq']
+            probescrape_line_dict['fw_tm'] = primer_pair['fw_tm']
             
-            for key in ('probe_root', 'probe_len', 'seq_rep', 'sens', 'spec', 'score', 'filesize'): probescrape_line_dict.pop(key)
-            for primer_pair in _flatten_list(random_batch_choices):
-                probescrape_line_dict['fw_seq'] = primer_pair['fw_seq']
-                probescrape_line_dict['fw_tm'] = primer_pair['fw_tm']
-                
-                probescrape_line_dict['rev_seq'] = primer_pair['rev_seq']
-                probescrape_line_dict['rev_tm'] = primer_pair['rev_tm']
+            probescrape_line_dict['rev_seq'] = primer_pair['rev_seq']
+            probescrape_line_dict['rev_tm'] = primer_pair['rev_tm']
 
 
-                represented_targets, represented_non_targets, total_amp_targets, total_amp_non_targets = _get_products(
-                    _forward_primer=primer_pair['fw_seq'],
-                    _reverse_primer=primer_pair['rev_seq'],
-                    _mismatches=3,
-                    _targets_list=targets_list,
-                    _non_targets_list=non_targets_list)
-                probescrape_line_dict['ratio (target:non-target)'] = (represented_targets+1)/(represented_non_targets+1)
-                
-                probescrape_line_dict['target_percentage_representation'] = represented_targets/len(targets_list)
-                probescrape_line_dict['non_target_percentage_representation'] = represented_non_targets/len(non_targets_list)
+            represented_targets, represented_non_targets, total_amp_targets, total_amp_non_targets = _get_products(
+                _forward_primer=primer_pair['fw_seq'],
+                _reverse_primer=primer_pair['rev_seq'],
+                _mismatches=2,
+                _targets_list=targets_list,
+                _non_targets_list=non_targets_list)
+            probescrape_line_dict['ratio (target:non-target)'] = (represented_targets+1)/(represented_non_targets+1)
+            
+            probescrape_line_dict['target_percentage_representation'] = represented_targets/len(targets_list)
+            probescrape_line_dict['non_target_percentage_representation'] = represented_non_targets/len(non_targets_list)
 
-                probescrape_line_dict['represented_targets'] = represented_targets
-                probescrape_line_dict['represented_non_targets'] = represented_non_targets
-                
-                probescrape_line_dict['total_amplification_target'] = total_amp_targets
-                probescrape_line_dict['total_amplification_non_target'] = total_amp_non_targets
+            probescrape_line_dict['represented_targets'] = represented_targets
+            probescrape_line_dict['represented_non_targets'] = represented_non_targets
+            
+            probescrape_line_dict['total_amplification_target'] = total_amp_targets
+            probescrape_line_dict['total_amplification_non_target'] = total_amp_non_targets
 
-                if probescrape_line_dict['target_percentage_representation'] < 0.99: continue
-                potential_primer_results.append(probescrape_line_dict)
+            if probescrape_line_dict['target_percentage_representation'] < 0.99: continue
+            potential_primer_results.append(probescrape_line_dict)
     
     _output_results(potential_primer_results, 'probescrape-results.parsed.csv')
+    return potential_primer_results
 def _get_products(_forward_primer: str, _reverse_primer: str, _mismatches: int, _targets_list: list, _non_targets_list: list) -> None:
     """
     """
@@ -203,12 +203,85 @@ def _get_products(_forward_primer: str, _reverse_primer: str, _mismatches: int, 
     total_amp_targets = len(list(filter(lambda accession: accession in _targets_list, amplicons_list)))
     total_amp_non_targets = len(list(filter(lambda accession: accession in _non_targets_list, amplicons_list)))
     return represented_targets, represented_non_targets, total_amp_targets, total_amp_non_targets
+def _parse_broad_mismatch_probescrape_results(_probescrape_results: list) -> list:
+    """
+    """
+    probescrape_results_non_redundant: dict = {}
+    for line_dict in _probescrape_results:
+        non_redundant_key = f"{line_dict['probe_seq']}_{line_dict['fw_seq']}_{line_dict['rev_seq']}"
+        if non_redundant_key not in probescrape_results_non_redundant: probescrape_results_non_redundant[non_redundant_key] = line_dict
+    probescrape_results_non_redundant: list = [result_dict for result_dict in probescrape_results_non_redundant.values()]
+
+    probesearch_results_specific_primers: list = []
+    targets_list: list = [file.stem.replace('.fna', '') for file in Path('targets').glob('*.fna.gz')]
+    non_targets_list: list = [file.stem.replace('.fna', '') for file in Path('non-targets').glob('*.fna.gz')]
+    for probescrape_line_dict in probescrape_results_non_redundant:
+        for mismatch_num in (1, 0):
+            represented_targets, represented_non_targets, total_amp_targets, total_amp_non_targets = _get_products(
+                _forward_primer=probescrape_line_dict['fw_seq'],
+                _reverse_primer=probescrape_line_dict['rev_seq'],
+                _mismatches=3,
+                _targets_list=targets_list,
+                _non_targets_list=non_targets_list)
+            print(represented_targets, represented_non_targets, total_amp_targets, total_amp_non_targets)
+            probescrape_line_dict[f'{mismatch_num}_mismatch_ratio (target:non-target)'] = (represented_targets+1)/(represented_non_targets+1)
+            
+            probescrape_line_dict[f'{mismatch_num}_target_percentage_representation'] = represented_targets/len(targets_list)
+            probescrape_line_dict[f'{mismatch_num}_non_target_percentage_representation'] = represented_non_targets/len(non_targets_list)
+
+            probescrape_line_dict[f'{mismatch_num}_represented_targets'] = represented_targets
+            probescrape_line_dict[f'{mismatch_num}_represented_non_targets'] = represented_non_targets
+            
+            probescrape_line_dict[f'{mismatch_num}_total_amplification_target'] = total_amp_targets
+            probescrape_line_dict[f'{mismatch_num}_total_amplification_non_target'] = total_amp_non_targets
+
+            if probescrape_line_dict[f'{mismatch_num}_target_percentage_representation'] < 0.99: continue
+            probesearch_results_specific_primers.append(probescrape_line_dict)
+    _output_results(probesearch_results_specific_primers, 'probescrape-results.parsed.primer-tested.csv')
+    return probesearch_results_specific_primers
+def _parse_primer_tested_results(_probescrape_results: list, _targets_list: list, _non_targets_list: list) -> list:
+    """
+    """
+    _list_to_output: list = []
+    for result_dict in _probescrape_results:
+
+        with open('primer', 'w') as primer_file: primer_file.write(f"M_BOVIS\t{result_dict['fwd_seq']}\t{result_dict['rev_seq']}\t50\t1000\n")
+
+        result = subprocess.run([
+            'ipcress',
+            '-i', 'primer',
+            '--sequence', 'db_targets-and-non-targets.fna',
+            '-m', '0',
+            '-p', 'FALSE',
+            '-P', 'TRUE',
+            ], capture_output=True)
+
+        with open('products.fasta', 'w') as products_file:
+            for line in result.stdout.decode().split('\n'):
+                if 'ipcress' in line: continue
+                if line.startswith('>'): line = f">{line.strip().split('seq ')[1]}"
+                products_file.write(line.strip()+'\n')
+        
+        target_binds: int = 0
+        non_target_binds: int = 0
+        for seq_object in SeqIO.parse('products.fasta', 'fasta'):
+            if result_dict['probe_seq'] not in seq_object.seq: continue
+            accession = '_'.join(seq_object.id.split('_')[:seq_object.id.split('_').index('GCA')+2])
+            if accession in _targets_list: target_binds += 1
+            elif accession in _non_targets_list: non_target_binds += 1
+        
+        result_dict['ratio_probe_binds'] = (target_binds+1)/(non_target_binds+1)
+        result_dict['target_probe_binds'] = target_binds
+        result_dict['non_target_probe_binds'] = non_target_binds
+        _list_to_output.append(result_dict)
+    _output_results(_list_to_output, 'probescrape-results.parsed.primer-tested.probe-tested.csv')
+    return _list_to_output
 def main() -> None:
 
     #args.output_path.joinpath('probesearch.log') = 
     logging.basicConfig(
         encoding='utf-8',
-        level=logging.INFO,
+        level=logging.CRITICAL,
         handlers=[
             logging.FileHandler('probescrape.log'),
             logging.StreamHandler()
@@ -217,7 +290,16 @@ def main() -> None:
         datefmt='%m/%d/%Y %H:%M:%S',
     )
 
-    _generate_probes_short_list(_batch_k=3)
-    _parse_probescrape_results(_batch_k=3)
+    probe_short_list: list = _generate_probes_short_list(_targets_file='', _batch_k=3)
+    logging.critical(f'=== GENERATED A LIST OF POTENTIAL PROBE TARGETS ===')
+
+    rough_tested_probes: list = _parse_probescrape_results(_probescrape_results=probe_short_list, _batch_k=3)
+    logging.critical(f'=== GENERATED A LIST OF POTENTIAL PRIMERS FOR EACH PROBE TARGET ===')
+
+    primer_tested_results: list = _parse_broad_mismatch_probescrape_results(_probescrape_results=rough_tested_probes)
+    logging.critical(f'=== TESTED PRIMER SPECIFICITY FOR EACH PROBE TARGET ===')
+
+    probe_tested_results: list = _parse_primer_tested_results(_probescrape_results=primer_tested_results)
+    logging.critical(f'=== TESTED PROBE SPECIFICITY FOR EACH PROBE TARGET ===')
 if __name__=='__main__':
     main()

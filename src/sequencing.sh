@@ -1,5 +1,7 @@
 #!/bin/bash
 
+genomic_reference="reference/GCA_016453205.2_ASM1645320v2_genomic.fna"
+
 # ===========================
 vcftools \
 --vcf non-targets.vcf \
@@ -17,3 +19,9 @@ python src/combine-snpden.py \
 --non-targets seq-non-targets.snpden \
 --output seq-targets.csv \
 --bin_size 1000
+
+head -n 100 seq-targets.csv > short-seq-targets.csv
+
+python src/seqscrape.py \
+--targets 'short-seq-targets.csv' \
+--reference $genomic_reference

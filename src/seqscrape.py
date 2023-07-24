@@ -1,11 +1,53 @@
+#!/usr/bin/env python3
+__description__ =\
+"""
+Purpose: Given an input FASTA and region, add annotations from gff and vcf files to produce a GenBank file.
+"""
+__author__ = "Erick Samera"
+__version__ = "1.0.0"
+__comments__ = "stable enough"
+# --------------------------------------------------
+from argparse import (
+    Namespace,
+    ArgumentParser,
+    RawTextHelpFormatter)
+from pathlib import Path
+# --------------------------------------------------
 import primer3
-from collections import Counter
 import subprocess
 import csv
-from pathlib import Path
 import logging
 import pandas as pd
+from collections import Counter
+# --------------------------------------------------
+def get_args() -> Namespace:
+    """ Get command-line arguments """
 
+    parser = ArgumentParser(
+        description=__description__,
+        epilog=f"v{__version__} : {__author__} | {__comments__}",
+        formatter_class=RawTextHelpFormatter)
+    parser.add_argument('--targets',
+        dest='targets_file_path',
+        metavar="<INPUT TARGETS FILE>",
+        type=Path,
+        required=True,
+        help="file containing target regions")
+    parser.add_argument('--reference',
+        dest='reference_fasta_path',
+        metavar="<REFERENCE FASTA FILE>",
+        type=Path,
+        required=True,
+        help="reference FASTA file")
+
+
+    args = parser.parse_args()
+
+    # parser errors and processing
+    # --------------------------------------------------
+
+    return args
+# --------------------------------------------------
 def _output_results(_results: list, _name_str: str) -> None: pd.DataFrame(_results).to_csv(f'{_name_str}', index=False); return None
 def _output_region_fasta(_region_str: str, _reference_path: Path=Path('reference/GCA_016453205.2_ASM1645320v2_genomic.fna')) -> None:
     """
@@ -13,7 +55,6 @@ def _output_region_fasta(_region_str: str, _reference_path: Path=Path('reference
     result = subprocess.run(['samtools', 'faidx', f'{_reference_path}', f'{_region_str}'], capture_output=True)
     parsed_seq: str = ''.join(result.stdout.decode().split('\n')[1:-1])
     return parsed_seq
-
 
 def _get_products(_forward_primer_seq: str, _reverse_primer_seq: str, _mismatches: int, _targets_list: list, _non_targets_list: list) -> dict:
     """
@@ -103,6 +144,9 @@ def _parse_primer3_results(_primer_3_dict: dict) -> list:
 def main() -> None:
     """
     """
+
+    args = get_args()
+
     logging.basicConfig(
         encoding='utf-8',
         level=logging.DEBUG,
@@ -118,14 +162,13 @@ def main() -> None:
     targets_list: list = [file.stem.replace('.fna', '') for file in Path('targets').glob('*.fna.gz')]
     non_targets_list: list = [file.stem.replace('.fna', '') for file in Path('non-targets').glob('*.fna.gz')]
 
-    potential_primers = []
-
+    potential_primers: list = []
 
     potential_primer_results: list = []
     with open('seq-short-targets.csv', encoding='utf-8-sig') as seq_targets_csv:
         line_dicts = [line for line in csv.DictReader(seq_targets_csv)]
         for i_line_dict, line_dict in enumerate(line_dicts):
-            parsed_seq: str = _output_region_fasta(line_dict['COORDS'])
+            parsed_seq: str = _output_region_fasta(line_dict['COORDS'], args.reference_fasta_path)
             if not len(parsed_seq) > 0: 
                 logging.debug(f"Skipped region {line_dict['COORDS']} ({i_line_dict+1}/{len(line_dicts)}; {(i_line_dict+1)/(len(line_dicts)):.2f})).")
                 continue

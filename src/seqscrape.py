@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 __description__ =\
 """
-Purpose: Given an input FASTA and region, add annotations from gff and vcf files to produce a GenBank file.
+Purpose:
 """
 __author__ = "Erick Samera"
-__version__ = "1.0.0"
+__version__ = "0.0.1"
 __comments__ = "stable enough"
 # --------------------------------------------------
 from argparse import (

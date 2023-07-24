@@ -1,4 +1,18 @@
+#!/usr/bin/env python3
+__description__ =\
+"""
+Purpose:
+"""
+__author__ = "Erick Samera"
+__version__ = "0.0.1"
+__comments__ = "stable enough"
+# --------------------------------------------------
+from argparse import (
+    Namespace,
+    ArgumentParser,
+    RawTextHelpFormatter)
 from pathlib import Path
+# --------------------------------------------------
 import subprocess
 import csv
 import random
@@ -7,12 +21,39 @@ import logging
 import Levenshtein
 from Bio import SeqIO
 from Bio.Seq import Seq
+# --------------------------------------------------
+def get_args() -> Namespace:
+    """ Get command-line arguments """
 
-# ===========================
+    parser = ArgumentParser(
+        description=__description__,
+        epilog=f"v{__version__} : {__author__} | {__comments__}",
+        formatter_class=RawTextHelpFormatter)
+    parser.add_argument('--targets',
+        dest='targets_file_path',
+        metavar="<INPUT TARGETS FILE>",
+        type=Path,
+        required=True,
+        help="file containing target regions")
+    parser.add_argument('--reference',
+        dest='reference_fasta_path',
+        metavar="<REFERENCE FASTA FILE>",
+        type=Path,
+        required=True,
+        help="reference FASTA file")
+
+
+    args = parser.parse_args()
+
+    # parser errors and processing
+    # --------------------------------------------------
+
+    return args
+# --------------------------------------------------
 def _mround(_number: int, _multiple: int) -> int: return _multiple * round(_number / _multiple)
 def _flatten_list(_list: list) -> list: return [item for sublist in _list for item in sublist]
 def _output_results(_results: list, _name_str: str) -> None: pd.DataFrame(_results).to_csv(f'{_name_str}', index=False); return None
-# ===========================
+# --------------------------------------------------
 def _parse_coords(_region_str: str) -> tuple:
     """
     """
@@ -20,14 +61,14 @@ def _parse_coords(_region_str: str) -> tuple:
     chromosome_str = components[0]
     start_pos, end_pos = [int(num) for num in components[1].split('-')]
     return chromosome_str, start_pos, end_pos
-def _output_region_fasta(_region_str: str, _reference_path: Path=Path('reference/GCA_016453205.2_ASM1645320v2_genomic.fna')) -> None:
+def _output_region_fasta(_region_str: str, _reference_path: Path) -> None:
     """
     """
     logging.debug(f'Wrote region {_region_str} to FASTA file.')
     result = subprocess.run(['samtools', 'faidx', f'{_reference_path}', f'{_region_str}'], capture_output=True)
     with open('target.fasta', mode='w') as fasta_output: fasta_output.write(result.stdout.decode())
     return None
-# ===========================
+# --------------------------------------------------
 def _run_probesearch(_region_str: str, _min_tm: int=67, _max_tm: int=70, _mp_job: int=12) -> None:
     """
     """
@@ -59,7 +100,7 @@ def _run_primersearch(_probe_root: int, _probe_len: int, _max_tm_diff: int=2, _m
         '--mp_job', f'{_mp_job}'
     ])
     return None
-# ===========================
+# --------------------------------------------------
 def _check_primer_results() -> None:
     """
     """
@@ -112,7 +153,6 @@ def _parse_probesearch_results(_target_region_str: str, _target_region_size: int
             probe_results.append(probe_to_add)
 
     return probe_results
-
 def _get_products(_probe_seq: str, _forward_primer_seq: str, _reverse_primer_seq: str, _mismatches: int, _targets_list: list, _non_targets_list: list) -> dict:
     """
     """
@@ -172,8 +212,7 @@ def _get_products(_probe_seq: str, _forward_primer_seq: str, _reverse_primer_seq
         }
 
     return products_dict
-
-def _generate_probes_short_list(_targets_file: Path, _nt_flank: int=75, _batch_k: int=3) -> list:
+def _generate_probes_short_list(_targets_file: Path, _reference_path: Path, _nt_flank: int=75, _batch_k: int=3) -> list:
     """
     """
     probe_results = []
@@ -182,7 +221,7 @@ def _generate_probes_short_list(_targets_file: Path, _nt_flank: int=75, _batch_k
             chromosome_str, start_pos, end_pos = _parse_coords(line_dict['COORDS'])
 
             target_region_str = f"{chromosome_str}:{start_pos-_nt_flank if start_pos-_nt_flank > 0 else 1}-{end_pos+_nt_flank}"
-            _output_region_fasta(target_region_str)
+            _output_region_fasta(target_region_str, _reference_path)
             
             logging.info(f'Running probesearch for region: {target_region_str} .')
             _run_probesearch(target_region_str)
@@ -190,7 +229,7 @@ def _generate_probes_short_list(_targets_file: Path, _nt_flank: int=75, _batch_k
         
     _output_results(probe_results, 'probescrape-results.csv')
     return probe_results
-def _parse_probescrape_results(_probescrape_results: list, _batch_k: int=2, _primer_batch_mround: int=5, _mismatches: int=1) -> list:
+def _parse_probescrape_results(_probescrape_results: list, _reference_path: Path, _batch_k: int=2, _primer_batch_mround: int=5, _mismatches: int=1) -> list:
     """
     """
 
@@ -208,7 +247,7 @@ def _parse_probescrape_results(_probescrape_results: list, _batch_k: int=2, _pri
     potential_primer_results: list = []
     for result_i, probescrape_line_dict in enumerate(filtered_probescrape_results):
         logging.debug(f'Checking probe result {result_i+1}/{len(filtered_probescrape_results)} ({(result_i+1)/len(filtered_probescrape_results)}).')
-        _output_region_fasta(probescrape_line_dict['target'])
+        _output_region_fasta(probescrape_line_dict['target'], _reference_path)
         _run_primersearch(probescrape_line_dict['probe_root'], probescrape_line_dict['probe_len'])
 
         batches_dict: dict = {}
@@ -254,10 +293,11 @@ def _parse_probescrape_results(_probescrape_results: list, _batch_k: int=2, _pri
     
     _output_results(potential_primer_results, 'probescrape-results.parsed.csv')
     return potential_primer_results
-# ===========================
+# --------------------------------------------------
 def main() -> None:
 
-    #args.output_path.joinpath('probesearch.log') = 
+    args = get_args()
+
     logging.basicConfig(
         encoding='utf-8',
         level=logging.DEBUG,
@@ -266,13 +306,18 @@ def main() -> None:
             logging.StreamHandler()
         ],
         format='%(asctime)s:%(levelname)s: %(message)s',
-        datefmt='%m/%d/%Y %H:%M:%S',
-    )
+        datefmt='%m/%d/%Y %H:%M:%S',)
 
-    probe_short_list: list = _generate_probes_short_list(_targets_file=Path('super-short-targets.csv'), _batch_k=4)
+    probe_short_list: list = _generate_probes_short_list(
+        _targets_file=args.targets_file_path,
+        _reference_path=args.reference_fasta_path,
+        _batch_k=4)
     logging.critical(f'=== GENERATED A LIST OF POTENTIAL PROBE TARGETS ===')
 
-    rough_tested_probes: list = _parse_probescrape_results(_probescrape_results=probe_short_list, _batch_k=4)
+    rough_tested_probes: list = _parse_probescrape_results(
+        _probescrape_results=probe_short_list,
+        _reference_path=args.reference_fasta_path,
+        _batch_k=4)
     logging.critical(f'=== GENERATED A LIST OF POTENTIAL PRIMERS FOR EACH PROBE TARGET ===')
 if __name__=='__main__':
     main()

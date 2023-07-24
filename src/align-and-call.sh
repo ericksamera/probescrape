@@ -58,3 +58,9 @@ python src/combine-snpden.py \
 --targets targets.snpden \
 --non-targets non-targets.snpden \
 --output targets.csv
+
+head -n 3 seq-targets.csv > short-seq-targets.csv
+
+python src/new-main.py \
+--targets 'short-seq-targets.csv' \
+--reference $genomic_reference

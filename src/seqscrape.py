@@ -165,7 +165,7 @@ def main() -> None:
     potential_primers: list = []
 
     potential_primer_results: list = []
-    with open('seq-short-targets.csv', encoding='utf-8-sig') as seq_targets_csv:
+    with open(args.targets_file_path, encoding='utf-8-sig') as seq_targets_csv:
         line_dicts = [line for line in csv.DictReader(seq_targets_csv)]
         for i_line_dict, line_dict in enumerate(line_dicts):
             parsed_seq: str = _output_region_fasta(line_dict['COORDS'], args.reference_fasta_path)

@@ -269,7 +269,7 @@ def main() -> None:
         datefmt='%m/%d/%Y %H:%M:%S',
     )
 
-    probe_short_list: list = _generate_probes_short_list(_targets_file=Path('super-super-short-targets.csv'), _batch_k=4)
+    probe_short_list: list = _generate_probes_short_list(_targets_file=Path('super-short-targets.csv'), _batch_k=4)
     logging.critical(f'=== GENERATED A LIST OF POTENTIAL PROBE TARGETS ===')
 
     rough_tested_probes: list = _parse_probescrape_results(_probescrape_results=probe_short_list, _batch_k=4)

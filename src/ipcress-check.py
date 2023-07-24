@@ -2,8 +2,8 @@ from pathlib import Path
 import subprocess
 from collections import Counter
 
-forward_primer: str = 'CCAGCCTCCGCCACCAATTT'
-reverse_primer: str = 'ATGGCGGTCCAGACGGGAAT'
+forward_primer: str = 'TCCTGTCGGAGTTGCAATTGT'
+reverse_primer: str = 'TGCAAACCGGTCAACTTCAAC'
 mismatches: int = 1
 
 def _get_products() -> None:
